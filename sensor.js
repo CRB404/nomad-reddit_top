@@ -1,41 +1,37 @@
-'use strict'
 const Nomad = require('nomad-stream')
 const moment = require('moment')
 const nomad = new Nomad()
 const fetch = require('node-fetch')
 
-let instance = null
-const frequency = 30 * 1000
+let instance = null  // the nomad instance
+const pollFrequency = 60 * 1000  // 60 seconds
+const url = 'https://newsapi.org/v1/articles?source=reddit-r-all&sortBy=top&apiKey=827666c95cdc4d1486c8c225448decae'
 
-// parse into url object
-let base = 'https://newsapi.org/v1/articles?source=reddit-r-all&sortBy=top&apiKey=827666c95cdc4d1486c8c225448decae'
-
-// returns promise
 function getMessage() {
-  const url = base
-  return fetch(url).then(res => {
-    return res.json();
-  }).then(json => {
-    console.log(json)
-    console.log('\n')
-    return Promise.resolve(JSON.stringify(json))
-  }).catch(err => {
-    console.log(err)
-    return Promise.reject(err)
-  })
+  return fetch(url)
+    .then(res => res.json())
+    .then(json => JSON.stringify(json))
+    .catch(err => {
+      console.log('getMessage error: ', err)
+      return err
+    })
 }
 
-nomad.prepareToPublish().then((n) => {
-  instance = n
-  return instance.publishRoot('hello')
-}).then(() => {
+function startPoll(frequency) {
   setInterval(() => {
-    getMessage().then(m => {
-      return instance.publish(m)
-    })
-    .catch(err => {
-      console.log(`Error: ${err}`)
-    })
+    getMessage()
+      .then((m) => {
+        console.log('fetched:', m)
+        return instance.publish(m)
+      })
+      .catch(console.log)
   }, frequency)
-})
-.catch(console.log)
+}
+
+nomad.prepareToPublish()
+  .then((node) => {
+    instance = node
+    return instance.publishRoot('hello')
+  })
+  .then(() => startPoll(pollFrequency))
+  .catch(console.log)
